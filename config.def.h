@@ -12,4 +12,5 @@ static const char *colorname[NUMCOLS] = {
 static const int failonclear = 1;
 
 /*Set Blur radius*/
-static const int blurRadius=5;
+static const int blurRadius=0;
+static const int pixelSize=5;
