@@ -414,7 +414,6 @@ main(int argc, char **argv) {
 			red /= (pixelSize*pixelSize);
 			green /= (pixelSize*pixelSize);
 			blue /= (pixelSize*pixelSize);
-			printf("R/G/B: %i/%i/%i\n",red,green,blue);
 			imlib_context_set_color(red,green,blue,pixel.alpha);
 			imlib_image_fill_rectangle(x,y,pixelSize,pixelSize);
 			red = 0;
