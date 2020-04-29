@@ -372,7 +372,7 @@ main(int argc, char **argv) {
 		die("slock: setgid: %s\n", strerror(errno));
 	if (setuid(duid) < 0)
 		die("slock: setuid: %s\n", strerror(errno));
-		
+
 	/*Create screenshot Image*/
 	Screen *scr = ScreenOfDisplay(dpy, DefaultScreen(dpy));
 	image = imlib_create_image(scr->width,scr->height);
@@ -381,6 +381,7 @@ main(int argc, char **argv) {
 	imlib_context_set_visual(DefaultVisual(dpy,0));
 	imlib_context_set_drawable(RootWindow(dpy,XScreenNumberOfScreen(scr)));	
 	imlib_copy_drawable_to_image(0,0,0,scr->width,scr->height,0,0,1);
+	imlib_image_blur(blurRadius);
 	
 	/* check for Xrandr support */
 	rr.active = XRRQueryExtension(dpy, &rr.evbase, &rr.errbase);
