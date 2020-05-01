@@ -406,24 +406,26 @@ main(int argc, char **argv) {
 		for (int x = 0; x < width; x++)
 		{
 			imlib_image_query_pixel(x,y,pp);
-			buffer[x+y*width + 0] = pixel.red;
-			buffer[x+y*width + 1] = pixel.green;
-			buffer[x+y*width + 2] = pixel.blue;
-			buffer[x+y*width + 3] = pixel.alpha;
-			//printf("pixel AT (%i|%i):\t",x,y);
-			//printf("R/G/B/A: %i/%i/%i/%i\n",pixel.red,pixel.green,pixel.blue,pixel.alpha);
+			buffer[(x+y*width)*4 + 0] = pixel.red;
+			buffer[(x+y*width)*4 + 1] = pixel.green;
+			buffer[(x+y*width)*4 + 2] = pixel.blue;
+			buffer[(x+y*width)*4 + 3] = pixel.alpha;
 		}
 	}
 
 
 	/*create kernel*/
-	float sigma = 1.0;
-	int kernelDimension = (int)ceilf(5 * sigma);
+	float sigma = 5;
+	//int kernelDimension = (int)ceilf(5 * sigma);
+	int kernelDimension = 10;
  	if (kernelDimension % 2 == 0)
  	kernelDimension++;
 	int cKernelSize = pow(kernelDimension, 2);
 	float ckernel[kernelDimension*kernelDimension];
+	//printf("Kernel Size(should be: %i): %i",ceilf(3*sigma),kernelDimension);
+	FILE *f = fopen("gaussmatrix","r");
 	float acc = 0;
+	/*
 	for (int j = 0; j < kernelDimension; j++)
 	{
    		int y = j - (kernelDimension / 2);
@@ -436,15 +438,20 @@ main(int argc, char **argv) {
           	acc += ckernel[j*i+i];
 		}
 	}
+	*/
+//printf("kerneldim %i\n",kernelDimension);
  	for (int j = 0; j < kernelDimension; j++)
 	{
 		for (int i = 0; i < kernelDimension; i++)
  		{
-      		ckernel[j*kernelDimension + i] = ckernel[j*kernelDimension + i] / acc;
+      		//ckernel[j*kernelDimension + i] = ckernel[j*kernelDimension + i] / acc;
+      		fscanf(f,"%f",&ckernel[j*kernelDimension + i]);
+			//fprintf(f,"%f",ckernel[(j * kernelDimension+i)]);
  		}
 	}
+	fclose(f);
+
 	/*Get cl file*/
-	char *debugg = malloc(inputSize);
 	FILE* inputFile = fopen("gaussgpu.cl","r");
 	fseek(inputFile,0L,SEEK_END);
 	int fileSize = ftell(inputFile);
@@ -464,9 +471,9 @@ main(int argc, char **argv) {
 	cl_uint numDevices = 0;
 	cl_device_id* devices = NULL;
 	
-	stat = clGetDeviceIDs(platforms[0],CL_DEVICE_TYPE_CPU,0,NULL, &numDevices);
+	stat = clGetDeviceIDs(platforms[0],CL_DEVICE_TYPE_ALL,0,NULL, &numDevices);
 	devices = (cl_device_id*)malloc(numDevices * sizeof(cl_device_id));
-	stat = clGetDeviceIDs(platforms[0],CL_DEVICE_TYPE_CPU,numDevices,devices,NULL);
+	stat = clGetDeviceIDs(platforms[0],CL_DEVICE_TYPE_ALL,numDevices,devices,NULL);
 
 	cl_context context = NULL;
 	context = clCreateContext(NULL,numDevices, devices,NULL,NULL, & stat);
@@ -487,7 +494,6 @@ main(int argc, char **argv) {
 	bufferRows = clCreateBuffer(context,CL_MEM_READ_ONLY,sizeof(int),NULL, &stat);
 	bufferColumns = clCreateBuffer(context,CL_MEM_READ_ONLY,sizeof(int),NULL,&stat);
 	bufferCKernelSize = clCreateBuffer(context,CL_MEM_READ_ONLY,sizeof(int),NULL,&stat);
-	bufferDebug = clCreateBuffer(context,CL_MEM_WRITE_ONLY,inputSize,NULL,&stat);
 
 	stat = clEnqueueWriteBuffer(cmdQueue,bufferPixels,CL_TRUE,0,inputSize,buffer,0,NULL,NULL);
 	stat = clEnqueueWriteBuffer(cmdQueue,bufferCKernel,CL_TRUE,0,cKernelSize * sizeof(float),ckernel,0,NULL,NULL);
@@ -540,34 +546,24 @@ main(int argc, char **argv) {
 		clSetKernelArg(kernel,3,sizeof(cl_mem),&bufferRows);
 		clSetKernelArg(kernel,4,sizeof(cl_mem),&bufferColumns);
 		clSetKernelArg(kernel,5,sizeof(cl_mem),&bufferCKernelSize);
-		clSetKernelArg(kernel,6,sizeof(cl_mem),&bufferDebug);
-
+	printf("test");
 
 	size_t globalWorkSize[1];
 	globalWorkSize[0] = inputSize;
 	clEnqueueNDRangeKernel(cmdQueue,kernel,1,NULL,globalWorkSize,NULL,0,NULL,NULL);
 	clEnqueueReadBuffer(cmdQueue,bufferOut,CL_TRUE,0,inputSize,Out,0,NULL,NULL);
-	clEnqueueReadBuffer(cmdQueue,bufferDebug,CL_TRUE,0,inputSize,debugg,0,NULL,NULL);
-
+	printf("test2");
 	/*convert array to image*/
 	for(int i = 0; i< inputSize;i+=4)
 	{
 		imlib_context_set_color(Out[i],Out[i+1],Out[i+2],Out[i+3]);
 		imlib_image_draw_rectangle((i/4)%width,(i/4)/width,1,1);
-		//printf("Pixel at (%x|%x): R/G/B/A: %i/%i/%i/%i\n",(i/4)%width,(i/4)/width,Out[i],Out[i+1],Out[i+2],pixel.alpha);
-	}
-	for(int i = 0; i< width; i += 4)
-	{
-		//printf("pixel at (%x|%x)\n",(i/4)%width,i/width);
-    //printf("i: %x \t i/4: %x \t debugg[i]: %x\n ",i,debugg[i/4],debugg[i]);
-		printf("%x ",debugg[i]);
 	}
 
 	free(buffer);
 	free(Out);
 	free(devices);
 	free(source);
-	free(debugg);
 	clReleaseKernel(kernel);
 	clReleaseProgram(program);
 	clReleaseCommandQueue(cmdQueue);
