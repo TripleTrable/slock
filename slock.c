@@ -385,13 +385,7 @@ main(int argc, char **argv) {
 	imlib_context_set_visual(DefaultVisual(dpy,0));
 	imlib_context_set_drawable(RootWindow(dpy,XScreenNumberOfScreen(scr)));	
 	imlib_copy_drawable_to_image(0,0,0,scr->width,scr->height,0,0,1);
-	/*Blur function*/
-	//#include"boxBlur.h"
-	//imlib_image_blur(3);
-	//imlib_image_blur(3);
-	//imlib_image_blur(3);
-	//Imlib_Image img = image;
-	//gaussBlur(image,img,1,1,5);
+
 	int width = scr->width;
 	int height = scr->height;
 	int inputSize = width*height*4;
@@ -413,9 +407,10 @@ main(int argc, char **argv) {
 		}
 	}
 
+#ifdef BLUR
 
 	/*create kernel*/
-	float sigma = 5;
+	float sigma = 2;
 	int kernelDimension = (int)ceilf(5 * sigma);
  	if (kernelDimension % 2 == 0)
  	kernelDimension++;
@@ -443,7 +438,6 @@ main(int argc, char **argv) {
       		ckernel[j*kernelDimension + i] = ckernel[j*kernelDimension + i] / acc;
  		}
 	}
-	fclose(f);
 
 	/*Get cl file*/
 	FILE* inputFile = fopen("gaussgpu.cl","r");
@@ -530,7 +524,6 @@ main(int argc, char **argv) {
     printf("%s\n", log);
 
 	}
-	else {printf("success\n");}
 		/*invoke blur*/
 		cl_kernel kernel = NULL;
 		kernel = clCreateKernel(program,"blur",&stat);
@@ -540,13 +533,11 @@ main(int argc, char **argv) {
 		clSetKernelArg(kernel,3,sizeof(cl_mem),&bufferRows);
 		clSetKernelArg(kernel,4,sizeof(cl_mem),&bufferColumns);
 		clSetKernelArg(kernel,5,sizeof(cl_mem),&bufferCKernelSize);
-	printf("test");
 
 	size_t globalWorkSize[1];
 	globalWorkSize[0] = inputSize;
 	clEnqueueNDRangeKernel(cmdQueue,kernel,1,NULL,globalWorkSize,NULL,0,NULL,NULL);
 	clEnqueueReadBuffer(cmdQueue,bufferOut,CL_TRUE,0,inputSize,Out,0,NULL,NULL);
-	printf("test2");
 	/*convert array to image*/
 	for(int i = 0; i< inputSize;i+=4)
 	{
@@ -554,8 +545,6 @@ main(int argc, char **argv) {
 		imlib_image_draw_rectangle((i/4)%width,(i/4)/width,1,1);
 	}
 
-	free(buffer);
-	free(Out);
 	free(devices);
 	free(source);
 	clReleaseKernel(kernel);
@@ -568,7 +557,102 @@ main(int argc, char **argv) {
 	clReleaseMemObject(bufferColumns);
 	clReleaseMemObject(bufferCKernelSize);
 
+#endif // BLUR
 
+#ifdef PIXELATE
+	FILE* inputFile = fopen("pixelate.cl","r");	
+	fseek(inputFile,0L,SEEK_END);
+	int fileSize = ftell(inputFile);
+	char* source = (char*)malloc(fileSize+1);
+	rewind(inputFile);
+	fileSize = fread(source,1,fileSize,inputFile);
+	source[fileSize] = '\0';
+	cl_int stat;
+	cl_uint numPlatforms = 0;
+	cl_platform_id* platforms = NULL;
+	stat = clGetPlatformIDs(0,NULL,&numPlatforms);
+	platforms = (cl_platform_id*) malloc(numPlatforms * sizeof(cl_platform_id));
+	stat = clGetPlatformIDs(numPlatforms,platforms,NULL);
+
+	cl_uint numDevices = 0;
+	cl_device_id* devices = NULL;
+	
+	stat = clGetDeviceIDs(platforms[0],CL_DEVICE_TYPE_ALL,0,NULL, &numDevices);
+	devices = (cl_device_id*)malloc(numDevices * sizeof(cl_device_id));
+	stat = clGetDeviceIDs(platforms[0],CL_DEVICE_TYPE_ALL,numDevices,devices,NULL);
+
+	cl_context context = NULL;
+	context = clCreateContext(NULL,numDevices, devices,NULL,NULL, & stat);
+
+	cl_command_queue cmdQueue;
+	cmdQueue = clCreateCommandQueue(context,devices[0],0,&stat);
+
+	cl_mem bufferPixel;
+	cl_mem bufferOut;
+	cl_mem bufferPixelSize;
+	cl_mem bufferRows;
+	cl_mem bufferColumns;
+
+	bufferPixel = clCreateBuffer(context,CL_MEM_READ_ONLY,inputSize,NULL,&stat);
+	bufferOut = clCreateBuffer(context,CL_MEM_WRITE_ONLY,inputSize,NULL,&stat);
+	bufferPixelSize = clCreateBuffer(context,CL_MEM_READ_ONLY,sizeof(float),NULL,&stat);
+	bufferRows = clCreateBuffer(context,CL_MEM_READ_ONLY,sizeof(int),NULL,&stat);
+	bufferColumns = clCreateBuffer(context,CL_MEM_READ_ONLY,sizeof(int),NULL,&stat);
+	
+	stat = clEnqueueWriteBuffer(cmdQueue,bufferPixel,CL_TRUE,0,inputSize,buffer,0,NULL,NULL);
+	stat = clEnqueueWriteBuffer(cmdQueue,bufferPixelSize,CL_TRUE,0,sizeof(int),&pixelSize,0,NULL,NULL);
+	stat = clEnqueueWriteBuffer(cmdQueue,bufferRows,CL_TRUE,0,sizeof(int),&height,0,NULL,NULL);
+	stat = clEnqueueWriteBuffer(cmdQueue,bufferColumns,CL_TRUE,0,sizeof(int),&width,0,NULL,NULL);
+
+	/*Compile Program*/
+	cl_program program = clCreateProgramWithSource(context,1,(const **)&source,NULL,&stat);
+	stat = clBuildProgram(program,numDevices,devices,NULL,NULL,NULL);
+	/*ErrorHandling*/
+	if (stat != CL_SUCCESS)
+	{
+		size_t log_size;
+		clGetProgramBuildInfo(program,devices[0],CL_PROGRAM_BUILD_LOG,0,NULL,&log_size);
+		char *log = (char*) malloc(log_size);
+		clGetProgramBuildInfo(program,devices[0],CL_PROGRAM_BUILD_LOG,log_size,log,NULL);
+		printf("%s\n",log);
+	}
+
+
+	/*invoke pixelation*/
+	cl_kernel kernel = NULL;
+	kernel = clCreateKernel(program,"pixelate",&stat);
+	clSetKernelArg(kernel,0,sizeof(cl_mem),&bufferPixel);
+	clSetKernelArg(kernel,1,sizeof(cl_mem),&bufferOut);
+	clSetKernelArg(kernel,2,sizeof(cl_mem),&bufferPixelSize),
+	clSetKernelArg(kernel,3,sizeof(cl_mem),&bufferRows);
+	clSetKernelArg(kernel,4,sizeof(cl_mem),&bufferColumns);
+
+	size_t globalWorkSize[1];
+	globalWorkSize[0] = inputSize/pixelSize;
+	clEnqueueNDRangeKernel(cmdQueue, kernel, 1, NULL, globalWorkSize, NULL, 0, NULL, NULL);
+	clEnqueueReadBuffer(cmdQueue, bufferOut, CL_TRUE, 0, inputSize, Out, 0, NULL, NULL);	
+
+	for(int i = 0; i< inputSize;i+=pixelSize*4)
+	{
+		imlib_context_set_color(Out[i],Out[i+1],Out[i+2],255);
+		//printf("%i/%i/%i/%i\n",Out[i],Out[i+1],Out[i+2],255);
+		imlib_image_draw_rectangle((i/4)%width,(i/4)/width,pixelSize,1);
+	}
+
+
+	free(devices);
+	free(source);
+	clReleaseKernel(kernel);
+	clReleaseProgram(program);
+	clReleaseCommandQueue(cmdQueue);
+	clReleaseMemObject(bufferPixel);
+	clReleaseMemObject(bufferOut);
+	clReleaseMemObject(bufferRows);
+	clReleaseMemObject(bufferColumns);
+
+#endif // PIXELATE
+	free(buffer);
+	free(Out);
 	/*Pixelation*/
 	/*
 	for(int y = 0; y < height; y += pixelSize)

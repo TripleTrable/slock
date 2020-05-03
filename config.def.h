@@ -13,9 +13,12 @@ static const int failonclear = 1;
 
 
 
-/*Enable Blur*/
-#define BLUR
+/*to disable Blur comment out this line*/
+//#define BLUR
 /*Set blur radius*/
 static const int blurRadius=0;
+
+/*to disable pixelation comment out this line*/
+#define PIXELATE 
 /*Set pixel radius*/
 static const int pixelSize=5;
