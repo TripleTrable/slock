@@ -416,16 +416,13 @@ main(int argc, char **argv) {
 
 	/*create kernel*/
 	float sigma = 5;
-	//int kernelDimension = (int)ceilf(5 * sigma);
-	int kernelDimension = 10;
+	int kernelDimension = (int)ceilf(5 * sigma);
  	if (kernelDimension % 2 == 0)
  	kernelDimension++;
 	int cKernelSize = pow(kernelDimension, 2);
 	float ckernel[kernelDimension*kernelDimension];
-	//printf("Kernel Size(should be: %i): %i",ceilf(3*sigma),kernelDimension);
-	FILE *f = fopen("gaussmatrix","r");
 	float acc = 0;
-	/*
+	
 	for (int j = 0; j < kernelDimension; j++)
 	{
    		int y = j - (kernelDimension / 2);
@@ -438,15 +435,12 @@ main(int argc, char **argv) {
           	acc += ckernel[j*i+i];
 		}
 	}
-	*/
-//printf("kerneldim %i\n",kernelDimension);
+	
  	for (int j = 0; j < kernelDimension; j++)
 	{
 		for (int i = 0; i < kernelDimension; i++)
  		{
-      		//ckernel[j*kernelDimension + i] = ckernel[j*kernelDimension + i] / acc;
-      		fscanf(f,"%f",&ckernel[j*kernelDimension + i]);
-			//fprintf(f,"%f",ckernel[(j * kernelDimension+i)]);
+      		ckernel[j*kernelDimension + i] = ckernel[j*kernelDimension + i] / acc;
  		}
 	}
 	fclose(f);
@@ -573,53 +567,7 @@ main(int argc, char **argv) {
 	clReleaseMemObject(bufferRows);
 	clReleaseMemObject(bufferColumns);
 	clReleaseMemObject(bufferCKernelSize);
-	/*Creat kernel*/
-	/*
-	float sigma = 1.5f;
-	float r,ss = 2.0f * sigma * sigma;
-	float sum = 0.0f;
-	float kernel[5][5];
-	for(int x = -2; x<= 2; x++)
-	{
-		for(int y = -2; y<= 2;y++)
-		{
-            r = sqrt(x * x + y * y);
-			kernel[x+2][y+2] = (exp(-(r*r)/ss))/(M_PI * ss);
-			sum += kernel[x+2][y+2];
-		}
-	}
 
-	for (int i = 0; i<5;++i)
-		for(int j = 0; j <5;++j)
-			kernel[i][j]/=sum;
-
-	Imlib_Color pixel; 
-	Imlib_Color* pp;
-	pp = &pixel;
-	int red = 0;
-	int green = 0;
-	int blue = 0;
-	for(int y = 0; y < height; y++)
-	{
-		for(int x = 0; x< width; x++)
-		{
-			for(int j = -2; j < 3; j++ )
-			{
-				for(int i = -2; i<3;i++)
-				{
-					imlib_image_query_pixel(x + i < 0 ? 0 : x +i,y +j < 0 ? 0 : y+j,pp);
-					red += pixel.red * kernel[i+2][j+2];
-					green += pixel.green * kernel[i+2][j+2];
-					blue += pixel.blue * kernel[i+2][j+2];
-				}
-			}
-			imlib_context_set_color(red,green,blue,pixel.alpha);
-			imlib_image_draw_rectangle(x,y,1,1);
-			red = blue = green = 0;
-		}
-	}
-
-*/
 
 	/*Pixelation*/
 	/*

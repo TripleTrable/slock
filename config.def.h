@@ -11,6 +11,11 @@ static const char *colorname[NUMCOLS] = {
 /* treat a cleared input like a wrong password (color) */
 static const int failonclear = 1;
 
-/*Set Blur radius*/
+
+
+/*Enable Blur*/
+#define BLUR
+/*Set blur radius*/
 static const int blurRadius=0;
+/*Set pixel radius*/
 static const int pixelSize=5;
